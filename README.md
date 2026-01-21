@@ -41,6 +41,25 @@ No other APIs are exposed to strictly follow API discipline.
 
 ---
 
+## API Flow
+1. Client sends `POST /api/order` with `{ productId, quantity }`
+2. **Route** (`routes/orderRoutes.js`) receives request and forwards to controller
+3. **Controller** (`controllers/orderController.js`) extracts `productId` and `quantity` from request body
+4. Controller calls `Service.placeOrder(productId, quantity)`
+5. **Service** (`services/orderService.js`) starts a database transaction
+6. Service locks the product row using `SELECT ... FOR UPDATE` (prevents concurrent access)
+7. Service validates product exists (throws error if not found)
+8. Service validates `stock >= quantity` (throws error if insufficient)
+9. Service calculates new stock: `updatedStock = product.stock - quantity`
+10. Service calls `ProductRepository.updateStock()` to deduct stock (within transaction)
+11. Service calls `OrderRepository.create()` to create order record (within transaction)
+12. Transaction commits (or rolls back automatically on any error)
+13. Controller receives order object from service
+14. Controller returns `201` response with success message and order data
+15. If any error occurs, controller catches it and returns `400` with error message
+
+---
+
 ## Business Logic Responsibility
 - Controller: Handles request and response only
 - Service: Contains complete business logic
